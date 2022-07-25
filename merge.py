@@ -3,7 +3,8 @@ import zipfile
 from lxml import etree as etree
 import concurrent.futures
 from multiprocessing import Process, Pool, Pipe, Queue
-from itertools import repeat
+import itertools
+import functools
 import timeit
 
 '''extract vars and objects'''
@@ -39,25 +40,22 @@ def read_zips_par_pool(zips):
     chunk = -(-len(zips)//os.cpu_count())
     with concurrent.futures.ProcessPoolExecutor() as executor:
         futures = [executor.submit(read_zips, zips[s:s+chunk],) for s in range(0, len(zips), chunk)]
-        for future in concurrent.futures.as_completed(futures):
-            alldata += future.result()
+        alldata = functools.reduce(lambda a, future: a + future.result(), concurrent.futures.as_completed(futures), [])
     return alldata
 
 def read_zips_pipes(pi_parent, pi_cli, zips):
-    #pi_parent.close()
+    pi_parent.close()
     pi_cli.send(read_zips(zips))
     pi_cli.close()
 
 '''processes and pipes'''
 def read_zips_par_pipes(zips):
-    chunk = -((-2*len(zips))//os.cpu_count())
+    chunk = -((-len(zips))//os.cpu_count())
     packs = [zips[s:s+chunk] for s in range(0, len(zips), chunk)]
     pipes = [Pipe() for p in packs]
     procs = [Process(target=read_zips_pipes, args=(pp, pc, z)) for (pp, pc), z in zip(pipes, packs)]
     [p.start() for p in procs]
-    alldata = []
-    for (pp,pc) in pipes:
-        alldata += pp.recv()
+    alldata = functools.reduce(lambda a, pipe: a + pipe[0].recv(), pipes, [])
     [p.join() for p in procs]
     return alldata
 
@@ -71,10 +69,7 @@ def read_zips_par_1queue(zips):
     queue = Queue()
     procs = [Process(target=read_zips_to_1queue, args=(zips[s:s+chunk], queue)) for s in range(0, len(zips), chunk)]
     [p.start() for p in procs]
-    alldata = []
-    for p in procs:
-        alldata += queue.get()
-    return alldata
+    return functools.reduce(lambda a, p: a + queue.get(), procs, [])
 
 '''format merged tables'''
 def make_merged_tables(alldata, tname1, tname2):
