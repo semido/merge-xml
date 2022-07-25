@@ -5,6 +5,7 @@ import base64
 import math
 from more_itertools import take, unique_everseen
 import zipfile
+import shutil
 import timeit
 
 '''get a key, easy version'''
@@ -43,26 +44,23 @@ def make_xml(key):
 '''build a set of xml by list of keys, pack to zip'''
 def make_zip(i, keys):
     zipname = str(i) + '.zip'
-    with zipfile.ZipFile(zipname, 'w') as izip:
-        for k in keys:
-            izip.writestr(k + '.xml', make_xml(k))
+    with zipfile.ZipFile(zipname, 'w') as z:
+        [z.writestr(k + '.xml', make_xml(k)) for k in keys]
 
 def make_all():
     zips_amount = 50
-    xmls_amount = 1000
+    xmls_amount = 100
     keys = make_unique_keys_it(zips_amount * xmls_amount)
 #    with open('keys.txt', 'w') as fk:
 #        fk.write('\n'.join(keys))
-    for i in range(zips_amount):
-        make_zip(i, keys[i*xmls_amount:(i+1)*xmls_amount])
+    [make_zip(i, keys[i*xmls_amount:(i+1)*xmls_amount]) for i in range(zips_amount)]
 
 if __name__ == '__main__':
     testdir = 'test'
     if os.path.isdir(testdir):
         print('clear temporary work dir:', testdir)
-        os.rmdir(testdir)
-    else:
-        os.mkdir(testdir)
+        shutil.rmtree(testdir)
+    os.mkdir(testdir)
     os.chdir(testdir)
     import timeit
     print(timeit.timeit("g()", setup='from __main__ import make_all as g', number=1))
